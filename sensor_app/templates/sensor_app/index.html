@@ -1,0 +1,142 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Gauge Sensor Data</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" type="text/css" href="{% static 'sensor_app/css/styles.css' %}">
+
+
+<body>
+  <div " style=" flex-direction: column; min-height: 100vh; display: flex; width: 100vw; justify-content: center;
+    align-items: center;">
+    <img src="{% static 'sensor_app/images/06.png' %}" class="logo_upet" />
+    <h1 style="
+    font-weight: 600;
+    font-size: 32px;
+    margin-bottom: 0;
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 2px;
+    ">
+      Doctorat
+    </h1>
+    <div
+      style="display: flex; flex-direction: column; align-items: start; gap: 2px; margin-top: 10px; margin-bottom: 20px;">
+      <p style="color: rgb(94, 94, 94);">
+        Stare sensor: <span id="sensor-status" style="color: rgb(16, 145, 70); font-weight: 600;">Activ</span>
+      </p>
+      <p style="color: rgb(94, 94, 94);">
+        Valoare curenta: <span id="sensor-value" style="color: rgb(16, 109, 145); font-weight: 600;">
+          Astepare date sensor...
+        </span>
+      </p>
+      <p style="color: rgb(94, 94, 94);">
+        Data start masurare: <span id="start-time" style="color: rgb(16, 109, 145); font-weight: 600;">
+          000:000
+        </span>
+      </p>
+      <button onclick="">
+        Resetare data
+      </button>
+    </div>
+    <canvas id="sensorChart" width="800" height="400"></canvas>
+    <div
+      style="background: black; width: 100%; height: 50px; position: fixed; bottom: 0; left: 0; display: flex ; align-items: center; justify-content: end; padding: 8px; padding-inline: 10px;">
+      <a href="{% url 'download_sensor_data' %}" class="btn"
+        style="background: white; color: black; padding-inline: 20px; padding-block: 14px; border-radius: 12px; font-weight: 600; border: none; margin-right: 30px; cursor: pointer;">
+        Exportare Date Sesiune
+      </a>
+    </div>
+  </div>
+  <script>
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const sensorSocket = new WebSocket('ws://' + window.location.host + '/ws/sensor/');
+      const maxDataPoints = 50; // Maximum points to show on the chart
+
+
+      // Initialize the chart
+      const ctx = document.getElementById('sensorChart').getContext('2d');
+      const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [], // X-axis labels
+          datasets: [{
+            label: 'Sensor Value (Real-Time)',
+            data: [], // Raw sensor values
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 2,
+            fill: false
+          }]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: true,
+          animation: false, // Disable animation for real-time updates
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Time'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Sensor Value'
+              },
+              suggestedMin: 0, // Minimum value for y-axis
+              suggestedMax: 1000 // Maximum value for y-axis (adjust based on your sensor range)
+            }
+          }
+        }
+      });
+
+      // Handle WebSocket messages
+      sensorSocket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        document.getElementById(
+          "sensor-value"
+        ).innerText = `${data.value}`;
+
+        if (data.start_time) {
+          document.getElementById('start-time').textContent = data.start_time;
+        }
+
+        if (data.status) {
+          document.getElementById('sensor-status').textContent = data.status;
+          document.getElementById("sensor-status").style = data.status === 'Active' ? 'color: green' : 'color: red'
+        }
+
+        if (data.value !== undefined) {
+          const currentTime = new Date().toLocaleTimeString();
+
+          // Add new data point
+          chart.data.labels.push(currentTime);
+          chart.data.datasets[0].data.push(data.value);
+
+          // Limit the number of points displayed on the chart
+          if (chart.data.labels.length > maxDataPoints) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+          }
+
+          chart.update();
+        } else if (data.error) {
+          console.error('Sensor Error:', data.error);
+        }
+      };
+
+      sensorSocket.onerror = function (error) {
+        console.error('WebSocket Error:', error);
+      };
+    });
+  </script>
+</body>
+
+</html>
